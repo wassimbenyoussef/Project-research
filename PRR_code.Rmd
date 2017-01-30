@@ -1,0 +1,270 @@
+---
+title: "Projet Recherche"
+author: "Douaa Gratet, Berivane Samou, Wassim Ben Youssef"
+date: "1 avril 2016"
+output: word_document
+---
+
+
+```{r}
+#install.packages("survival")
+library(survival)
+# Première partie : analyse classique avec les outils habituels
+data <- veteran
+data$celltype <- as.numeric(data$celltype)
+data$prior <- as.numeric(data$prior)
+data$trt <- as.numeric(data$trt)
+attach(data)
+hist(data$karno, main="Histogramme pour celltype")
+hist(data$diagtime, main="Histogramme pour diagtime")
+hist(data$age, main="Histogramme de l'age")
+plot(data$celltype, main="Histogramme pour celltype")
+plot(data$prior, main="Histogramme pour prior")
+data_sanstime <- data
+data_sanstime$time <- NULL 
+
+are.factor  <-sapply(data_sanstime, is.factor)
+heatmap(abs(cor(data_sanstime[, !are.factor])),main="Heatmap")
+data$status <- as.numeric(data$status)
+
+
+par(mfrow=c(1,1))
+#Deuxième partie : les tests non paramétriques qui ne font pas d'hypothèse sur la distribution des échantillons
+survie <- Surv(data$time,data$status) #Création d'un objet de survie :on sait à présent qu'il y a des données censurées dans la colonne time que l'on a identifié grâce à la colonne status 
+survie
+
+plot(survfit(survie~data$trt), xlab="durée de survie ", ylab = "probablilité de survie", col=c('red','blue'))
+legend(600,0.7,c("sans traitement","avec traitement"),lty=c(1,1),col=c("red","blue"))
+
+plot(survfit(survie~data$prior), xlab="durée de survie ", ylab = "probablilité de survie", col=c('red','blue'))
+legend(600,0.7,c("sans priorité","avec priorité"),lty=c(1,1),col=c("red","blue"))
+
+plot(survfit(survie~data$celltype), xlab="durée de survie ", ylab = "probablilité de survie", col=c('red','blue','green','black'))
+legend(600,0.7,c("squamous","smallcell","adeno","large"),lty=c(1,1),col=c("red","blue","green","black"))
+
+
+# Estimateur de Nelson Aalen
+plot(survfit(survie~data$trt,type="fleming-harrington"), xlab="durée de survie ", ylab = "probablilité de survie", col=c('red','blue'))
+legend(600,0.7,c("sans traitement","avec traitement"),lty=c(1,1),col=c("red","blue"))
+
+plot(survfit(survie~data$prior,type="fleming-harrington"), xlab="durée de survie ", ylab = "probablilité de survie", col=c('red','blue'))
+legend(600,0.7,c("sans priorité","avec priorité"),lty=c(1,1),col=c("red","blue"))
+
+plot(survfit(survie~data$celltype,type="fleming-harrington"), xlab="durée de survie ", ylab = "probablilité de survie", col=c('red','blue','green','black'))
+legend(600,0.7,c("squamous","smallcell","adeno","large"),lty=c(1,1),col=c("red","blue","green","black"))
+
+
+
+# Tests de Wilcoxon + test de log-rank
+
+# On commence par faire deux groupes pour la variable celltype : on crée une nouvelle variable celltype2 dans laquelle on met les deux groupes : 1 pour les celltypes 1 et 2 , et 2 pour les celltypes 3 et 4
+
+data$celltype2 <- data$celltype
+data$celltype2[data$celltype2==2]<-0
+data$celltype2[data$celltype2==3]<-0
+data$celltype2[data$celltype2==4]<-1
+
+plot(survfit(survie~data$celltype2), xlab="durée de survie ", ylab = "probablilité de survie", col=c('red','blue'))
+legend(600,0.7,c("celltype : smallcell or adeno","celltype squamous or large"),lty=c(1,1),col=c("red","blue"))
+#Test de log-rank
+survdiff(survie~trt,data=data)#p-value très grande, donc même conclusion que en bas
+survdiff(survie~prior,data=data)#p-value grande, donc aucune différence entre les deux instances de la variable prior, elles n'affectent pas la variable à expliquer, qui est le temps de survie de l'individu
+survdiff(survie~celltype2,data=data)#p-value très petite : la valeur à expliquer prend des valeurs bien différentes en fonction des valeurs de celltype2, la variable celltype2 a donc une vraie influence pour la survie des individus
+#celltype2 est donc la meilleur variable explicative parmi les 3
+
+#test de Wilcoxon
+
+survdiff(survie~trt,data=data,rho=1)#p-value très grande, donc même conclusion que en bas
+survdiff(survie~prior,data=data,rho=1)#p-value grande, donc aucune différence entre les deux instances de la variable prior, elles n'affectent pas la variable à expliquer, qui est le temps de survie de l'individu
+survdiff(survie~celltype2,data=data,rho=1)
+
+
+#regrouper les ages
+data$age2 <- data$age
+data$age2[data$age2<=45] <- 1
+data$age2[45<data$age2&data$age2<=60] <- 2
+data$age2[60<data$age2&data$age2<=70] <- 3
+data$age2[70<data$age2] <- 4
+
+
+
+#plot(surv.fit,col=c(1,2,3,4),xlab = "Durée de survie",ylab="probabilité de survie")
+#legend(600,0.7,c("age < 45 ans","45 ans < age < 60 ans","60 ans < age < 70 ans", "70 ans < age"),lty=c(1,1),col=c(1,2,3,4))
+
+
+plot(survfit(survie~data$age2),col="blue",xlab="durée de survie ",ylab = "probabilité de survie")
+
+#lines(survfit(surv.fit2),col="red")
+lines(survfit(survie~data$age2),col=c(1,2,3,4))
+legend(600,0.7,c("age < 45 ans","45 ans < age < 60 ans","60 ans < age < 70 ans", "70 ans < age"),lty=c(1,1),col=c(1,2,3,4))
+
+
+survdiff(survie~data$age2)# les expected sont loin des observed donc pas très bon je pense
+
+data$age3 <- data$age
+data$age3[data$age3<=60] <- 1
+data$age3[60<data$age3&data$age3<=65] <- 2
+data$age3[65<data$age3&data$age3<=70] <- 3
+data$age3[70<data$age3] <- 4
+
+surv.fit3 <- survfit(survie~data$age3)
+plot(surv.fit3,col="blue",xlab="durée de survie ",ylab = "probabilité de survie")
+
+#lines(survfit(surv.fit2),col="red")
+lines(surv.fit3,col=c(1,2,3,4))
+legend(600,0.7,c("age < 60 ans","60 ans < age < 65 ans","65 ans < age < 70 ans", "70 ans < age"),lty=c(1,1),col=c(1,2,3,4))
+survdiff(survie~data$age3)
+
+data$age4 <- data$age
+data$age4[data$age4<=40] <- 1
+data$age4[40<data$age4&data$age4<=58] <- 2
+data$age4[58<data$age4] <- 3
+
+
+plot(survfit(survie~data$age4),xlab="durée de survie ",ylab = "probabilité de survie")
+lines(survfit(survie~data$age4),col=c(1,2,3,4))
+legend(600,0.7,c("age < 55 ans","55 ans < age < 67 ans","67 ans < age < 69 ans", "69 ans < age"),lty=c(1,1),col=c(1,2,3,4))
+survdiff(survie~data$age4)
+
+# faire plusieurs regroupement de âge et faire un modèle de cox dessus pour voir lesquels sont différents et lesquels ne le sont pas
+# On ne trouve pas vraiment une bonne répartition entre les âges, on ne peut pas vraiment faire de classes d'âges mais on essaye quand même de regrouper la classe 1 et 3
+data$age5 <- data$age
+data$age5[data$age5<=40] <- 0
+data$age5[40<data$age5&data$age5<=58] <- 1
+data$age5[58<data$age5] <- 0
+plot(survfit(survie~data$age5),xlab="durée de survie ",ylab = "probabilité de survie")
+lines(survfit(survie~data$age5),col=c(1,2))
+legend(600,0.7,c("age <= 40 ans et >58 ans","40 ans < age < 58 ans"),lty=c(1,1),col=c(1,2))
+
+survdiff(survie~age5,data=data,rho=0)
+survdiff(survie~age5,data=data,rho=1)#étant donné que wilcoxon est plus sensibles aux variables du début, on a un problème au début : les courbes sont similaires au début donc pas très bonne répartition
+
+#faire pareil pour les autres variables quantitatives
+data$karno2 <- data$karno
+data$karno2[data$karno2<=50] <- 0
+data$karno2[50<data$karno2&data$karno2<=60] <- 1
+data$karno2[60<data$karno2&data$karno2<=70] <- 2
+data$karno2[70<data$karno2] <- 3
+plot(survfit(survie~data$karno2),xlab="durée de survie ",ylab = "probabilité de survie")
+lines(survfit(survie~data$karno2),col=c(1,2,3,4))
+legend(600,0.7,c("karno <= 50","50< karno <= 60 ","60 < karno <= 70 ", "70 < "),lty=c(1,1),col=c(1,2,3,4))
+
+survdiff(survie~data$karno2)
+survdiff(survie~data$karno2,rho=1)
+# déjà on peut regrouper les deux dernières
+
+data$karno3 <- data$karno
+data$karno3[data$karno3<=50]<-0
+data$karno3[50<data$karno3&data$karno3<=60] <- 1
+data$karno3[60<data$karno3] <- 2
+plot(survfit(survie~data$karno3),xlab="durée de survie ",ylab = "probabilité de survie")
+lines(survfit(survie~data$karno3),col=c(1,2,3,4))
+legend(600,0.7,c("karno <= 50","50< karno <= 60 ","60 < karno "),lty=c(1,1),col=c(1,2,3))
+survdiff(survie~data$karno3)
+survdiff(survie~data$karno3,rho=1)
+# on essaye d'en rapprocher deux 
+data$karno4 <- data$karno
+data$karno4[data$karno4<=30]<-0
+data$karno4[30<data$karno4&data$karno4<=40] <- 1
+data$karno4[40<data$karno4] <- 2
+plot(survfit(survie~data$karno4),xlab="durée de survie ",ylab = "probabilité de survie")
+lines(survfit(survie~data$karno4),col=c(1,2,3,4))
+legend(600,0.7,c("karno <= 50","50< karno <= 60 ","60 < karno "),lty=c(1,1),col=c(1,2,3))
+survdiff(survie~data$karno4)
+survdiff(survie~data$karno4,rho=1)
+# Maintenant on peut faire deux groupes bien distincts
+
+data$karno5 <- data$karno
+data$karno5[data$karno5<=40]<-0
+data$karno5[40<data$karno5] <- 1
+plot(survfit(survie~data$karno5),xlab="durée de survie ",ylab = "probabilité de survie")
+lines(survfit(survie~data$karno5),col=c(1,2,3,4))
+legend(600,0.7,c("karno <= 40","40< karno "),lty=c(1,1),col=c(1,2))
+survdiff(survie~data$karno5)
+survdiff(survie~data$karno5,rho=1)# On a bien des courbes bien distinctes au début et à la fin
+# On essaye de faire pareil pour diagtime
+
+data$diag2 <- data$diagtime
+data$diag2[data$diag2<=5] <- 0
+data$diag2[5<data$diag2&data$diag2<=15] <- 1
+data$diag2[15<data$diag2&data$diag2<=25] <- 2
+data$diag2[25<data$diag2] <- 3
+plot(survfit(survie~data$diag2),xlab="durée de survie ",ylab = "probabilité de survie")
+lines(survfit(survie~data$diag2),col=c(1,2,3,4))
+legend(600,0.7,c("diagtime <= 5","5< diagtime <= 15 ","15<diagtime<=25","25<diagtime"),lty=c(1,1),col=c(1,2,3,4))
+survdiff(survie~data$diag2)
+survdiff(survie~data$diag2,rho=1)
+
+# Noir et rouge assez proche donc on les fusionne
+
+
+data$diag3 <- data$diagtime
+data$diag3[data$diag3<=15] <- 0
+data$diag3[15<data$diag3&data$diag3<=25] <- 1
+data$diag3[25<data$diag3] <- 2
+
+plot(survfit(survie~data$diag3),xlab="durée de survie ",ylab = "probabilité de survie")
+lines(survfit(survie~data$diag3),col=c(1,2,3,4))
+legend(600,0.7,c("diagtime <= 15","15< diagtime <= 25 ","25<diagtime"),lty=c(1,1),col=c(1,2,3))
+survdiff(survie~data$diag3)
+survdiff(survie~data$diag3,rho=1)
+# On essaye d'en rapprocher deux
+data$diag4 <- data$diagtime
+data$diag4[data$diag4<=10] <- 0
+data$diag4[10<data$diag4&data$diag4<=20] <- 1
+data$diag4[20<data$diag4] <- 2
+
+plot(survfit(survie~data$diag4),xlab="durée de survie ",ylab = "probabilité de survie")
+lines(survfit(survie~data$diag4),col=c(1,2,3,4))
+legend(600,0.7,c("diagtime <= 10","10< diagtime <= 20 ","20<diagtime"),lty=c(1,1),col=c(1,2,3))
+# là on peut pas vraiment faire deux groupes bien distincts
+#!! Pas la peine de faire les résidus, pour voir si les modèles sont bon faudra tracer les courbes et voir que sa soit 
+
+data$prior[data$prior==10] <- 1
+data$trt[data$trt==1] <- 0
+data$trt[data$trt==2] <- 1
+data$trt_prior <- data$trt*data$prior
+data$trt_celltype2 <- data$trt*data$celltype2
+data$prior_celltype2 <- data$prior*data$celltype2
+data$karno5_celltype2 <- data$karno5*data$celltype2
+data$karno5_trt <- data$karno5*data$trt
+data$karno5_prior <- data$karno5*data$prior
+library("stats")
+library("MASS")
+
+
+cox <- coxph(survie~data$prior+data$trt+data$celltype2+data$age+data$diagtime+data$karno+data$trt_celltype2+data$trt_prior+data$prior_celltype2)#modèle de cox sans la variable karno5
+stepAIC(cox,scope=list(lower=.~1,upper=.~.),direction="backward")
+
+basehaz(coxph(Surv(time, status)~data$karno, data=data))# pour obtenir l'estimateur
+plot(log(-log(survfit(survie~data$prior)$surv)))
+plot(log(-log(survfit(survie~data$trt)$surv)))
+plot(log(-log(survfit(survie~data$celltype2)$surv)))#modèle de cox pas totalement adapté
+plot(log(-log(survfit(survie~data$age)$surv)))
+plot(log(-log(survfit(survie~data$karno)$surv)))
+plot(log(-log(survfit(survie~data$trt_prior)$surv)))
+
+#expliquer peut-être les limites de la séléction avec AIC et BIC
+
+# modèle de cox avec la variable karno5
+cox2<- coxph(survie~data$prior+data$trt+data$celltype2+data$age+data$diagtime+data$karno+data$karno5+data$karno5_trt+data$karno5_prior+data$karno5_celltype2+data$trt_celltype2+data$trt_prior+data$prior_celltype2)
+stepAIC(cox2,scope=list(lower=.~1,upper=.~.),direction="backward")
+stepAIC(cox2,scope=list(lower=.~1,upper=.~.),direction="forward")
+stepAIC(cox2,scope=list(lower=.~1,upper=.~.),direction="both")
+step(cox2,scope=list(lower=.~1,upper=.~.),direction="backward")
+#voir c'est lesquels qu'il faut prendre
+
+
+plot(log(-log(survfit(survie~data$prior)$surv)))
+plot(log(-log(survfit(survie~data$trt)$surv)))
+plot(log(-log(survfit(survie~data$karno)$surv)))#modèle de cox pas totalement adapté
+plot(log(-log(survfit(survie~data$karno5)$surv)))
+plot(log(-log(survfit(survie~data$karno5_trt)$surv)))
+plot(log(-log(survfit(survie~data$karno5_prior)$surv)))
+plot(log(-log(survfit(survie~data$karno5_celltype2)$surv)))
+plot(log(-log(survfit(survie~data$trt_prior)$surv)))
+
+
+```
+
+
